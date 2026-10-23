@@ -513,8 +513,8 @@ def _answer_impl(question: str, lat: float | None = None, lon: float | None = No
     if not fresh.get("activity") and not fresh.get("location_text"):
         if pending == "activity" and looks_like_activity(question):
             activity_hint = clean_activity(question)
-        elif pending == "location" and (looks_like_place(question)
-                                        or looks_like_bare_place(question)):
+        elif (pending == "location" and not wants_my_location(question)
+              and (looks_like_place(question) or looks_like_bare_place(question))):
             location_hint = clean_place(question)
         elif pending is None and looks_like_activity(question):
             bare = True
@@ -538,13 +538,16 @@ def _answer_impl(question: str, lat: float | None = None, lon: float | None = No
     parsed = parse_query(combined, lat=lat, lon=lon,
                          location_hint=location_hint, activity_hint=activity_hint)
 
-    # a direct answer to our own "which place?" question is the place
-    if location_hint:
+    # a direct answer to our own "which place?" question is the place --
+    # unless the user asked us to use their own location, which is not a place
+    if location_hint and not wants_my_location(question):
         parsed["location_text"] = location_hint
     # whatever the user just typed outranks anything carried over from earlier.
     # "temples in Ayodhya" then "monuments in New Delhi" must answer for New Delhi.
-    if fresh.get("location_text"):
+    if fresh.get("location_text") and not wants_my_location(question):
         parsed["location_text"] = fresh["location_text"]
+    if wants_my_location(question):
+        parsed["location_text"] = None      # the fix comes from the device, not a name
     if fresh.get("activity"):
         parsed["activity"] = fresh["activity"]
     if fresh.get("radius_km"):

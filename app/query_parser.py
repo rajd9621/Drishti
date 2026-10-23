@@ -189,14 +189,16 @@ def detect_more(text: str) -> bool:
     return any(p in t for p in MORE_PHRASES)
 
 
-MY_LOCATION_PHRASES = ["use my location", "using my location", "my location", "my current location",
-                       "use my current location", "here", "near me", "around me", "nearby me",
-                       "current location", "where i am"]
+# Whole phrases only, and on word boundaries. A plain substring test made
+# "Where can I go running?" match on the "here" inside "Where".
+MY_LOCATION_RE = re.compile(
+    r"\b(?:use my (?:current )?location|using my (?:current )?location|"
+    r"my (?:current )?location|current location|near me|around me|nearby me|"
+    r"where i am|my place|here)\b")
 
 
 def wants_my_location(text: str) -> bool:
-    t = (text or "").lower()
-    return any(p in t for p in MY_LOCATION_PHRASES)
+    return bool(MY_LOCATION_RE.search((text or "").lower()))
 
 
 def detect_keywords(text: str, slots: dict) -> list:
@@ -401,9 +403,17 @@ BARE_PLACE_HINT = re.compile(
     r"^[A-Za-z][A-Za-z .'\-]{2,40}$")
 
 
+LOCATION_WORDS = ("location", "gps", "geo", "here", "my place", "current place",
+                  "where i am", "where i'm", "around me", "near me")
+
+
 def looks_like_bare_place(text: str) -> bool:
     """A short message with no verb that is probably just a place name."""
     t = (text or "").strip().rstrip("?.!")
+    low0 = t.lower()
+    # "use my current location" is a request, not a place
+    if wants_my_location(t) or any(w in low0 for w in LOCATION_WORDS):
+        return False
     if not t or len(t.split()) > 5:
         return False
     if not BARE_PLACE_HINT.match(t):

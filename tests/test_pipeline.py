@@ -617,6 +617,58 @@ def test_route_scoring_finds_the_bad_stretch():
     assert flat["best_worst"] == 84.0, flat["best_worst"]
 
 
+def test_a_location_request_is_never_a_place():
+    """'Use my current location' must never be geocoded, and a plain 'where'
+    question must not be mistaken for a request for the user's own location."""
+    from app.query_parser import wants_my_location as w, looks_like_bare_place as bare, rule_parse
+    # the bug: "Where ..." matched on the "here" inside "Where"
+    assert w("Where can I go running near Koregaon Park?") is False
+    assert w("Where can I go for cricket?") is False
+    assert w("Best place for tennis in Pune") is False
+    assert w("use my location") is True
+    assert w("Use my current location") is True
+    assert w("Where can I run near me?") is True
+    # and it is not a place name either
+    assert bare("Use my current location") is False
+    assert bare("my location") is False
+    assert bare("Koregaon Park") is True
+    assert rule_parse("Use my current location")["location_text"] is None
+
+
+def test_clicking_use_my_location_works():
+    """The chip is an action: with a fix it answers, without one it asks to turn
+    the location on. It must never say it could not locate the sentence."""
+    from app import reasoning, data_fetcher as df
+    rp, rg, rw, ra, rrt, rgc = (df.places_and_context, df.geocode, df.weather,
+                                df.air_quality, df.route_time, df.geospatial_context)
+    df.geocode = lambda p, country="India": {"lat": 19.12, "lon": 72.85,
+                                             "display_name": f"{p}, India"}
+    df.places_and_context = lambda la, lo, r, a: {
+        "places": [{"name": "Ground", "lat": 19.121, "lon": 72.851,
+                    "tags": {"leisure": "park"}}], "context": {"counts": {}}}
+    df.weather = lambda *a, **k: None
+    df.air_quality = lambda *a, **k: None
+    df.route_time = lambda *a, **k: {"seconds": 300, "metres": 1500}
+    df.geospatial_context = lambda la, lo, r=3000: {
+        "industrial": [], "water": [], "green": [], "power": [], "roads": [], "counts": {}}
+    try:
+        a = reasoning.answer("Where can I go for cricket?")
+        assert a["clarifying"] is True
+        # with a fix from the device
+        b = reasoning.answer("Use my current location", session_id=a["session_id"],
+                             lat=19.1197, lon=72.8464)
+        assert "could not locate" not in b["advice"], b["advice"]
+        assert b["clarifying"] is False, b["advice"]
+        # without one
+        c = reasoning.answer("Use my current location", session_id=a["session_id"])
+        assert "could not locate" not in c["advice"], c["advice"]
+        assert c["clarifying"] is True
+    finally:
+        (df.places_and_context, df.geocode, df.weather, df.air_quality,
+         df.route_time, df.geospatial_context) = rp, rg, rw, ra, rrt, rgc
+    print("ok  'Use my current location' answers, or asks to turn the pin on")
+
+
 def test_any_activity_resolves():
     from app.profiles import resolve_profile_key
     assert resolve_profile_key("boating") == "watersport"

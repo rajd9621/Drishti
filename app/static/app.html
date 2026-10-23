@@ -1010,7 +1010,12 @@ details th{ color:var(--ink-dim) }
       }
       var n1 = addAssistant(h, { rate: true, say: d.advice, data: d, asked: asked });
       Array.prototype.forEach.call(n1.querySelectorAll(".qchip"), function (c) {
-        c.onclick = function () { quick(c.getAttribute("data-q")); };
+        c.onclick = function () {
+          var v = c.getAttribute("data-q");
+          // "Use my current location" is an action, not a question: ask the browser
+          if (v === "Use my current location") { useLocation(true); return; }
+          quick(v);
+        };
       });
       return;
     }
