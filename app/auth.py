@@ -17,6 +17,7 @@ bearer tokens stored hashed, all in one SQLite file (var/drishti.db).
 from __future__ import annotations
 
 import hashlib
+import logging
 import hmac
 import os
 import re
@@ -112,11 +113,16 @@ def _issue_code(conn, email: str, name: str | None, pw_hash: str | None,
 
 
 def _send(email: str, name: str, code: str, purpose: str) -> tuple[bool, str]:
-    """Returns (ok, how) where how is 'SENT' or 'LOGGED'. The mailer logs
-    the real error to var/mail-error.log before raising."""
+    """Returns (ok, how) where how is 'SENT' or 'LOGGED'.
+
+    Mailer also writes a local diagnostic, and this logger makes the failure
+    visible in Render's service logs (the local filesystem may be ephemeral).
+    Never log the OTP, password, or SMTP credentials.
+    """
     try:
         return True, mailer.send_otp(email, name, code, purpose)
-    except Exception:
+    except Exception as exc:
+        logging.exception("Drishti OTP email delivery failed (%s)", type(exc).__name__)
         return False, ""
 
 

@@ -83,3 +83,17 @@ still works fully - it simply uses the deterministic parser and narrator.
 - [ ] The instance is warm and will not cold-sleep mid-demo
 - [ ] README lists the base model, all data sources, and the endpoint URL
 - [ ] The HF model repo is public and loads with `from_pretrained(...)`
+
+
+## Email OTP setup on Render
+
+To send real signup/login codes, open the Render Dashboard, select the Drishti web service, then open **Environment**. Set these values (never commit real credentials):
+
+- `SMTP_HOST` = `smtp.gmail.com`
+- `SMTP_PORT` = `587`
+- `SMTP_USER` = the sending Gmail address
+- `SMTP_PASS` = a Google App Password (not the normal Gmail password)
+- `SMTP_FROM` = the same sending Gmail address
+- `SMTP_TLS` = `1`
+
+Create a Google App Password only after enabling 2-Step Verification on that Google account. Save the variables and redeploy/restart the service. If delivery still fails, check the Render service logs for `Drishti OTP email delivery failed`; do not share SMTP credentials in screenshots.

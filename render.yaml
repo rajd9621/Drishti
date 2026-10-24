@@ -15,6 +15,20 @@ services:
         value: "1800"
       - key: DRISHTI_DEFAULT_RADIUS_KM
         value: "5"
+      # Add these secrets in Render Dashboard > Environment.
+      # Keep sync:false so credentials are never committed to this repository.
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        value: "587"
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
+        sync: false
+      - key: SMTP_FROM
+        sync: false
+      - key: SMTP_TLS
+        value: "1"
       # Optional official overlays - add these as secret env vars in the dashboard,
       # never commit real values.
       # - key: WAQI_TOKEN
