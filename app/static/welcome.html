@@ -67,6 +67,17 @@
   .btn.ghost{ background:var(--card); color:var(--ink); border:1px solid var(--line); box-shadow:none }
   .foot{ margin-top:26px; font-size:12.5px; color:var(--ink-dim); opacity:.9;
          animation:fadeup .8s .5s ease both }
+  @media (max-width:700px){
+    .wrap{ padding:24px 18px }
+    .logo{ width:52px; height:52px; margin-bottom:14px }
+    .mascotbox{ width:150px; height:150px; margin-bottom:8px }
+    .mascot{ width:150px; height:150px }
+    .glow{ width:240px; height:240px }
+    .sub{ font-size:14.5px }
+    .actions{ flex-direction:column; align-items:stretch; gap:9px; margin-top:22px }
+    .btn{ justify-content:center; padding:13px 20px }
+    .foot{ margin-top:20px }
+  }
   @media (prefers-reduced-motion:reduce){ *{animation:none!important} }
 </style>
 </head>
@@ -102,9 +113,9 @@
         <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
         Continue to Drishti
       </a>
-      <a class="btn ghost" href="/signin">Sign in</a>
     </div>
     <p class="foot">No account needed - you can chat right away.</p>
   </div>
+<script src="/static/neural-preloader.js" data-mode="preloader" data-alpha="0.5"></script>
 </body>
 </html>

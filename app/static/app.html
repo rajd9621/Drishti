@@ -57,10 +57,8 @@ body{
   background-attachment:fixed;
 }
 body[data-theme="dark"]{
-  background-image:
-    radial-gradient(1100px 640px at 10% -10%, rgba(63,174,109,.14), transparent 62%),
-    radial-gradient(900px 560px at 100% 0%, rgba(217,169,68,.10), transparent 58%),
-    linear-gradient(180deg,var(--bg2),var(--bg));
+  /* dark mode: no background pattern, no corner glows - a flat, calm base */
+  background-image: linear-gradient(180deg,var(--bg2),var(--bg));
 }
 h1,h2,h3,.grotesk{ font-family:"Space Grotesk","Inter",system-ui,sans-serif; letter-spacing:-.02em }
 .serif{ font-family:"Instrument Serif",Georgia,serif; font-style:italic; font-weight:400 }
@@ -321,6 +319,32 @@ details th{ color:var(--ink-dim) }
   .bubble{ max-width:92% }
 }
 
+/* phone look: compact bar, bottom-sheet sign-in, thumb-friendly composer */
+@media (max-width:700px){
+  .topbar{ padding:8px 12px; gap:8px }
+  .brandlogo{ width:28px; height:28px }
+  .brandtext b{ font-size:15px }
+  .brandtext span{ display:none }
+  .topacts{ gap:6px }
+  .topacts select{ max-width:104px; font-size:12.5px }
+  .tbtn{ padding:6px 9px; font-size:12.5px }
+  .userchip span{ max-width:84px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap }
+  .hero h2{ font-size:21px; line-height:1.2 }
+  .hero p{ font-size:13.5px }
+  .ibox{ padding:11px 12px }
+  .taskbar{ gap:6px; margin-bottom:7px }
+  .taskbar button{ font-size:12.5px; padding:6px 10px; white-space:nowrap }
+  .composer{ padding-bottom:calc(10px + env(safe-area-inset-bottom)) }
+  #q{ font-size:16px }
+  .send{ padding:0 15px }
+  .bubble{ max-width:94%; font-size:14px }
+  .locchip{ font-size:11.5px }
+  .modal{ align-items:flex-end; justify-content:center }
+  .modal .card{ width:100%; max-width:100%; border-radius:18px 18px 0 0;
+    max-height:92vh; overflow-y:auto; padding-bottom:calc(18px + env(safe-area-inset-bottom)) }
+  .toast{ bottom:calc(20px + env(safe-area-inset-bottom)); max-width:92vw; text-align:center }
+}
+
 /* explore list -- click a row to open its brief */
 .explore{ margin-top:8px }
 .explrow{ border:1px solid var(--line); border-radius:12px; background:var(--card);
@@ -385,8 +409,6 @@ details th{ color:var(--ink-dim) }
     </div>
     <div class="sidelabel" id="i_history">Chat history</div>
     <div class="sidelist" id="chatList"></div>
-    <div class="sidelabel" id="i_fav">Favourite places</div>
-    <div class="sidelist" id="favList" style="flex:0 0 auto;max-height:150px"></div>
     <div class="sidefoot">
       <button class="sidebtn" id="voiceOutBtn" type="button">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M11 5 6 9H3v6h3l5 4V5z"/><path d="M16 9a4 4 0 0 1 0 6"/></svg>
@@ -429,8 +451,10 @@ details th{ color:var(--ink-dim) }
     <p class="sub" id="mSub">Signing in saves your chat history and favourite places to this device. You can also keep chatting without an account.</p>
     <form id="authForm" novalidate>
       <div class="hidden" id="nameWrap"><label for="name">Your name</label><input id="name" type="text" placeholder="e.g. Raj"></div>
-      <div><label for="email">Email</label><input id="email" type="email" placeholder="you@example.com"></div>
-      <div><label for="password">Password</label><input id="password" type="password" placeholder="Your password"></div>
+      <div id="emailWrap"><label for="email">Email</label><input id="email" type="email" placeholder="you@example.com"></div>
+      <div id="passWrap"><label for="password">Password</label><input id="password" type="password" placeholder="Your password"></div>
+      <div class="hidden" id="otpWrap"><label for="otp">Email code</label><input id="otp" type="text" inputmode="numeric" autocomplete="one-time-code" placeholder="6-digit code"></div>
+      <p class="alt hidden" id="resendLine">Did not get it? <span id="resendWait"></span><a id="resendLink" class="hidden">Resend code</a></p>
       <div class="err" id="mErr"></div>
       <button class="submit" id="mSubmit" type="submit">Log in</button>
     </form>
@@ -499,7 +523,6 @@ details th{ color:var(--ink-dim) }
     $("i_tagline").textContent = tr("tagline");
     $("i_newchat").textContent = tr("newchat");
     $("i_history").textContent = tr("history");
-    $("i_fav").textContent = tr("favourites");
     $("i_live").textContent = tr("live_india");
     $("i_why").textContent = tr("why_drishti");
     $("i_signin").textContent = user ? tr("sign_out") : tr("sign_in");
@@ -574,7 +597,7 @@ details th{ color:var(--ink-dim) }
       return '<div class="sideitem' + (current && c.id === current.id ? " active" : "") + '" data-id="' + c.id + '">'
         + '<div class="t"><div>' + esc(c.title || tr("newchat")) + '</div><div class="d">' + d + "</div></div>"
         + '<button class="x" data-del="' + c.id + '">&#10005;</button></div>';
-    }).join("") + (!user ? '<div class="sideempty">' + esc(tr("sign_in")) + "</div>" : "");
+    }).join("");
     Array.prototype.forEach.call(box.querySelectorAll(".sideitem"), function (n) {
       n.onclick = function (e) { if (e.target.getAttribute("data-del")) return; openThread(n.getAttribute("data-id")); };
     });
@@ -745,41 +768,78 @@ details th{ color:var(--ink-dim) }
     if (voiceOut) say(tr("voice_on"), true);
   }
 
-  /* ---------------- location ---------------- */
+  /* ---------------- location ----------------
+     Live GPS only, taken automatically: requested on load, refreshed at
+     ask time if there is no fix yet. No manual place picking anywhere. */
+  var locState = "idle";   // idle | pending | on | denied | unsupported
+  var locWaiters = [];
   function setLoc() {
     var box = $("locChip"); if (!box) return;
     var pin = LUCIDE.pin;
-    box.className = useMyLocation && myLocation ? "locchip on" : "locchip";
-    box.innerHTML = useMyLocation && myLocation
-      ? pin + " " + esc(tr("loc_on")) + " <b>&#10005; " + esc(tr("turn_off")) + "</b>"
-      : pin + " " + esc(tr("loc_off"));
-    if (useMyLocation && myLocation) {
-      box.querySelector("b").onclick = function () { useMyLocation = false; myLocation = null; setLoc(); };
-    } else {
+    if (locState === "on" && myLocation) {
+      box.className = "locchip on";
+      box.innerHTML = pin + " " + esc(tr("loc_on")) + " <b>&#10005; " + esc(tr("turn_off")) + "</b>";
+      box.querySelector("b").onclick = function () {
+        useMyLocation = false; myLocation = null; locState = "idle"; setLoc();
+      };
+      box.onclick = null;
+    } else if (locState === "denied") {
+      box.className = "locchip";
+      box.innerHTML = pin + " " + esc(tr("loc_denied")) + " <b>" + esc(tr("loc_off")) + "</b>";
       box.style.cursor = "pointer";
-      box.onclick = function () { useLocation(true); };
+      box.onclick = function () { requestLocation(null, true); };
+    } else if (locState === "unsupported") {
+      box.className = "locchip";
+      box.innerHTML = pin + " " + esc(tr("geo_unsupported"));
+      box.onclick = null;
+    } else {
+      box.className = "locchip";
+      box.innerHTML = pin + " " + esc(tr("locating")) + "\u2026";
+      box.onclick = null;
     }
   }
-  function useLocation(sendNow) {
-    if (!navigator.geolocation) { toast(tr("geo_unsupported")); return; }
-    toast(tr("locating") + "\u2026");
-    var settled = false;
+  function requestLocation(cb, loud) {
+    if (!navigator.geolocation) {
+      locState = "unsupported"; setLoc();
+      if (loud) toast(tr("geo_unsupported"));
+      if (cb) cb(false);
+      return;
+    }
+    if (locState === "pending") { if (cb) locWaiters.push(cb); return; }
+    locState = "pending"; setLoc();
+    var done = false;
+    function finish(ok) {
+      if (done) return; done = true;
+      var ws = locWaiters; locWaiters = [];
+      if (cb) cb(ok);
+      ws.forEach(function (w) { w(ok); });
+    }
+    // watchdog: a browser that never answers must not hang the chat
+    setTimeout(function () {
+      if (!done && locState === "pending") { locState = myLocation ? "on" : "idle"; setLoc(); finish(!!myLocation); }
+    }, 12000);
     // a coarse, cached fix comes back far faster than a high-accuracy one
     navigator.geolocation.getCurrentPosition(function (p) {
-      settled = true;
       myLocation = { lat: p.coords.latitude, lon: p.coords.longitude };
-      useMyLocation = true; setLoc();
+      useMyLocation = true; locState = "on"; setLoc();
       warm(myLocation);
+      finish(true);
+    }, function () {
+      locState = "denied"; setLoc();
+      if (loud) toast(tr("loc_denied"));
+      finish(false);
+    }, { enableHighAccuracy: false, timeout: 10000, maximumAge: 300000 });
+  }
+  function useLocation(sendNow) {
+    requestLocation(function (ok) {
+      if (!ok) { if (locState === "denied") toast(tr("loc_denied")); return; }
+      toast(tr("loc_is_on"));
       if (sendNow) {
         addUser("Use my current location");
         // the box is empty here -- pass the text explicitly
         send(true, "Use my current location");
       }
-      else toast(tr("loc_is_on"));
-    }, function () {
-      settled = false;
-      toast(tr("loc_denied"));
-    }, { enableHighAccuracy: false, timeout: 7000, maximumAge: 300000 });
+    }, true);
   }
 
   function warm(loc) {
@@ -808,6 +868,17 @@ details th{ color:var(--ink-dim) }
     var text = (explicitText || qBox.value).trim(); if (!text) return;
     qBox.value = ""; qBox.style.height = "auto";
     if (!fromVoice) addUser(text);
+    // no fix yet: take the live location first, but never wait forever
+    if (!myLocation && locState !== "denied" && locState !== "unsupported") {
+      var waited = false;
+      var go = function () { if (!waited) { waited = true; doSend(fromVoice, text); } };
+      requestLocation(function () { go(); });
+      setTimeout(go, 4000);
+      return;
+    }
+    doSend(fromVoice, text);
+  }
+  function doSend(fromVoice, text) {
     var t = addTyping();
     busy = true;
     sendBtn.className = "send stop"; $("i_send").textContent = tr("stop");
@@ -1209,9 +1280,35 @@ details th{ color:var(--ink-dim) }
     }).catch(function () { box.innerHTML = "-"; });
   }
 
-  /* ---------------- auth ---------------- */
+  /* ---------------- auth (email + password, then OTP) ---------------- */
+  var authStep = "details", pendingEmail = "", resendTimer = null;
+  function stopCountdown() { if (resendTimer) { clearInterval(resendTimer); resendTimer = null; } }
+  function startCountdown(seconds) {
+    stopCountdown();
+    var left = seconds;
+    $("resendLink").className = "hidden";
+    var paint = function () {
+      $("resendWait").textContent = left > 0 ? "Resend code in " + Math.floor(left / 60) + ":" + String(left % 60).padStart(2, "0") + ". " : "";
+      if (left <= 0) { stopCountdown(); $("resendLink").className = ""; }
+      left--;
+    };
+    paint();
+    resendTimer = setInterval(paint, 1000);
+  }
+  function showAuthDetails() {
+    $("emailWrap").className = ""; $("passWrap").className = "";
+    $("otpWrap").className = "hidden"; $("resendLine").className = "alt hidden";
+  }
+  function showAuthCode() {
+    $("nameWrap").className = "hidden"; $("emailWrap").className = "hidden"; $("passWrap").className = "hidden";
+    $("otpWrap").className = ""; $("resendLine").className = "alt";
+  }
   function setMode(m) {
     var su = m === "signup";
+    authStep = "details"; pendingEmail = ""; stopCountdown();
+    showAuthDetails();
+    $("otp").value = "";
+    $("mStatus").textContent = "";
     $("mTitle").innerHTML = su ? '<span class="soft">' + esc(tr("m_signup_title")) + "</span>" : '<span class="soft">' + esc(tr("m_login_title")) + "</span>";
     $("nameWrap").className = su ? "" : "hidden";
     $("mSubmit").textContent = su ? tr("f_create") : tr("f_login");
@@ -1226,22 +1323,27 @@ details th{ color:var(--ink-dim) }
     if (user) $("userName").textContent = user.who || user.email;
     $("i_signin").textContent = user ? tr("sign_out") : tr("sign_in");
   }
-  function signIn(who, email) {
+  function signIn(who, email, token) {
     user = { who: who, email: email };
-    store("drishti_user", user); applyUser(); closeModal();
+    store("drishti_user", user);
+    if (token) store("drishti_token", token);
+    applyUser(); closeModal();
     var s = user ? load(chatsKey()) : null;
     if (s && s.length) { chats = s; openThread(s.slice().sort(function (a, b) { return b.updatedAt - a.updatedAt; })[0].id); }
     else startFresh();
     favourites = load(favKey()) || favourites; renderFavs();
   }
   function signOut() {
-    user = null; try { localStorage.removeItem("drishti_user"); } catch (e) {}
+    var tok = load("drishti_token");
+    if (tok) fetch("/auth/logout", { method: "POST", headers: { "Authorization": "Bearer " + tok } }).catch(function () {});
+    user = null;
+    try { localStorage.removeItem("drishti_user"); localStorage.removeItem("drishti_token"); } catch (e) {}
     applyUser(); chats = []; favourites = load(favKey()) || []; startFresh(); renderFavs();
   }
 
   function startFresh() {
     newThread(); current.hero = true;
-    sessionId = null; useMyLocation = false; myLocation = null;
+    sessionId = null;   // a live location fix, once taken, stays on across chats
     setLoc(); inner.innerHTML = ""; hero(); renderList();
     if (scrollBox) scrollBox.scrollTop = 0;
   }
@@ -1269,7 +1371,12 @@ details th{ color:var(--ink-dim) }
     $("liveBtn").onclick = showCities;
     $("whyBtn").onclick = function () { addAssistant('<p><b>Why Drishti</b></p>' + USP()); };
     $("voiceOutBtn").onclick = toggleVoiceOut;
-    $("homeBtn").onclick = function () { window.location.href = "/"; };
+    $("homeBtn").onclick = function () {
+      // the button says Sign in / Sign out, so it does exactly that:
+      // sign in opens the login page directly, sign out stays in the app
+      if (user) signOut();
+      else window.location.href = "/signin";
+    };
     $("menuBtn").onclick = function () { document.body.classList.toggle("nav-open"); };
     $("scrim").onclick = function () { document.body.classList.remove("nav-open"); };
     $("xclose").onclick = closeModal;
@@ -1279,17 +1386,70 @@ details th{ color:var(--ink-dim) }
     qBox.addEventListener("input", function () { qBox.style.height = "auto"; qBox.style.height = Math.min(120, qBox.scrollHeight) + "px"; });
     $("authForm").addEventListener("submit", function (e) {
       e.preventDefault();
-      var email = $("email").value.trim(), pass = $("password").value, name = $("name").value.trim();
+      var email = $("email").value.trim(), name = $("name").value.trim();
       var su = !$("nameWrap").classList.contains("hidden");
+      var mode = su ? "signup" : "login";
       $("mErr").textContent = "";
-      if (su && name.length < 2) { $("mErr").textContent = tr("err_name"); return; }
-      if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { $("mErr").textContent = tr("err_email"); return; }
-      if (pass.length < 6) { $("mErr").textContent = tr("err_password"); return; }
-      signIn(su ? name : email.split("@")[0], email);
+      if (authStep === "details") {
+        if (su && name.length < 2) { $("mErr").textContent = tr("err_name"); return; }
+        if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { $("mErr").textContent = tr("err_email"); return; }
+        var pass = $("password").value;
+        if (pass.length < 6) { $("mErr").textContent = tr("err_password"); return; }
+        $("mSubmit").disabled = true; $("mStatus").textContent = "Sending your code\u2026";
+        fetch("/auth/request", { method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: email, password: pass, name: name, mode: mode }) })
+          .then(function (r) { return r.json(); })
+          .then(function (d) {
+            $("mSubmit").disabled = false;
+            if (!d.ok) { $("mErr").textContent = d.message || "Could not send the code."; $("mStatus").textContent = ""; return; }
+            authStep = "code"; pendingEmail = email;
+            showAuthCode();
+            $("mSubmit").textContent = "Verify and continue";
+            $("mStatus").textContent = d.message;
+            startCountdown(d.resend_after || 180);
+            $("otp").focus();
+          })
+          .catch(function () { $("mSubmit").disabled = false; $("mStatus").textContent = ""; $("mErr").textContent = "Network problem. Please try again."; });
+        return;
+      }
+      var code = $("otp").value.trim();
+      if (!/^\d{6}$/.test(code)) { $("mErr").textContent = "Enter the 6-digit code from your email."; return; }
+      $("mSubmit").disabled = true; $("mStatus").textContent = "Checking your code\u2026";
+      fetch("/auth/verify", { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: pendingEmail, code: code }) })
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+          $("mSubmit").disabled = false;
+          if (!d.ok) { $("mErr").textContent = d.message || "That code is not right."; $("mStatus").textContent = ""; return; }
+          signIn(d.user.who, d.user.email, d.token);
+        })
+        .catch(function () { $("mSubmit").disabled = false; $("mStatus").textContent = ""; $("mErr").textContent = "Network problem. Please try again."; });
+    });
+    $("resendLink").addEventListener("click", function () {
+      if (authStep !== "code") return;
+      $("mErr").textContent = ""; $("mStatus").textContent = "Sending a new code\u2026";
+      fetch("/auth/resend", { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: pendingEmail }) })
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+          if (!d.ok) { $("mErr").textContent = d.message || "Could not resend the code."; $("mStatus").textContent = ""; return; }
+          $("mStatus").textContent = d.message;
+          startCountdown(d.resend_after || 180);
+        })
+        .catch(function () { $("mStatus").textContent = ""; $("mErr").textContent = "Network problem. Please try again."; });
     });
 
     initVoice();
     loadActivities();
+    requestLocation(null, false);   // take the live location as soon as the app opens
+    var savedToken = load("drishti_token");
+    if (savedToken) {
+      fetch("/auth/me", { headers: { "Authorization": "Bearer " + savedToken } })
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (d) {
+          if (d && d.ok && d.user) { user = d.user; store("drishti_user", user); applyUser(); }
+        }).catch(function () {});
+    }
     var su = load("drishti_user");
     if (su && su.email) {
       user = su; applyUser();
@@ -1316,5 +1476,6 @@ details th{ color:var(--ink-dim) }
 })();
 
 </script>
+<script src="/static/neural-preloader.js" data-mode="ambient" data-alpha="0.4"></script>
 </body>
 </html>

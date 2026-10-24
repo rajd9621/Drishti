@@ -6,8 +6,9 @@ Run locally:
 from __future__ import annotations
 
 import os
+from typing import Optional
 
-from fastapi import FastAPI, Query
+from fastapi import FastAPI, Header, Query
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -144,3 +145,64 @@ def ask(req: AskRequest):
     result = reasoning.answer(req.question, lat=req.lat, lon=req.lon,
                               session_id=req.session_id, lang=req.lang or "en")
     return JSONResponse(result)
+
+
+# ---------------- accounts: email + OTP ----------------
+from . import auth as _auth
+
+
+class OtpRequest(BaseModel):
+    email: str
+    password: str = ""
+    name: Optional[str] = None
+    mode: str = "login"
+
+
+class OtpVerify(BaseModel):
+    email: str
+    code: str
+
+
+class OtpResend(BaseModel):
+    email: str
+
+
+@app.post("/auth/request")
+def auth_request(req: OtpRequest):
+    ok, msg, extra = _auth.request_otp(req.email, req.password, req.name, req.mode)
+    body = {"ok": ok, "message": msg}
+    body.update(extra)
+    return JSONResponse(body, status_code=200 if ok else 400)
+
+
+@app.post("/auth/resend")
+def auth_resend(req: OtpResend):
+    ok, msg = _auth.resend_otp(req.email)
+    body = {"ok": ok, "message": msg}
+    if ok:
+        body["resend_after"] = _auth.RESEND_AFTER_SECONDS
+    return JSONResponse(body, status_code=200 if ok else 400)
+
+
+@app.post("/auth/verify")
+def auth_verify(req: OtpVerify):
+    ok, msg, user, token = _auth.verify_otp(req.email, req.code)
+    if not ok:
+        return JSONResponse({"ok": False, "message": msg}, status_code=400)
+    return {"ok": True, "message": msg, "user": user, "token": token}
+
+
+@app.get("/auth/me")
+def auth_me(authorization: str | None = Header(None)):
+    token = (authorization or "").removeprefix("Bearer ").strip() or None
+    user = _auth.user_for_token(token)
+    if user is None:
+        return JSONResponse({"ok": False}, status_code=401)
+    return {"ok": True, "user": user}
+
+
+@app.post("/auth/logout")
+def auth_logout(authorization: str | None = Header(None)):
+    token = (authorization or "").removeprefix("Bearer ").strip() or None
+    _auth.logout(token)
+    return {"ok": True}
